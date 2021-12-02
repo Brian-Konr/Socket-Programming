@@ -10,13 +10,15 @@
 using namespace std;
 
 int PORT;
+int SERVER_CLIENT_SOCKETFD;
+string USER_NAME;
 # define MAX_MSG_SIZE 4096
 # define MAX_CLIENT 10
 
 void* receive_thread(void* server_fd);
 void receiving(int server_fd);
-void transfering();
-int receiveList(char* buffer);
+void transfering(char* toSendAddress, int payee_port, string msg);
+int receiveList(char* buffer); /*bool search = false, string targetName = ""*/
 int main() {
 
     /*First, build a socket to listen incoming messages from other clients*/
@@ -75,12 +77,16 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    SERVER_CLIENT_SOCKETFD = socketfd; // global variable for listen thread to use
+
     cout << "connection succeeds" << endl;
     bool exit = false, isLogin = false;
     while(!exit) {
         string request, sendMessage;
         char buffer[MAX_MSG_SIZE] = {0}; //used to receive from server
-        cout << "What service do you want today? ";
+        string welcomeMsg;
+        welcomeMsg = isLogin ? USER_NAME + ", what service do you want today? " : "Hello, what service do you want today? ";
+        cout << welcomeMsg;
         cin >> request;
         if(request == "register") {
             string userAccountName;
@@ -90,10 +96,10 @@ int main() {
         }
         else if(request == "login") {
             if(!isLogin) {
-                isLogin = true;
                 string userAccountName;
                 cout << "Please enter your user account name: ";
                 cin >> userAccountName;
+                USER_NAME = userAccountName;
                 sendMessage = userAccountName + "#" + to_string(PORT);
             }
             else {
@@ -105,28 +111,78 @@ int main() {
             else cout << "Please login first!" << endl;
         }
         else if(request == "exit") {
-            sendMessage = "Exit";
-            exit = true;
+            char exitBuffer[MAX_MSG_SIZE] = {0};
+            strcpy(exitBuffer, "Exit");
+            write(socketfd, exitBuffer, sizeof(exitBuffer));
+            read(socketfd, exitBuffer, sizeof(exitBuffer));
+            if(strcmp(exitBuffer, "Bye\n") == 0 || true) {
+                cout << "successfully terminate!" << endl;
+                if(isLogin) cout << USER_NAME << ", See you next time!";
+                else cout << "See you next time!";
+                cout << endl;
+                return 0;
+            }
         }
         else if(request == "transfer") {
             if(isLogin) {
-                // string myUserAccountName, payAmount, payeeUserAccountName;
-                // cout << "Please enter your account name: ";
-                // cin >> myUserAccountName;
-                // cout << "Please enter the payee's account name: ";
-                // cin >> payeeUserAccountName;
+                string msg = "List";
+                char tempBuffer[MAX_MSG_SIZE] = {0};
+                char contBuffer[MAX_MSG_SIZE] = {0};
+                send(socketfd, msg.c_str(), sizeof(msg), 0);
+                recv(socketfd, tempBuffer, MAX_MSG_SIZE, 0);
+                strcpy(contBuffer, tempBuffer);
+                if(receiveList(tempBuffer) == -1) cout << "information from server has packet loss, please type transfer to send and receive info again" << endl;
+                else {
+                    int continue_ = 2; // default not continue
+                    cout << "Do you want to continue? 1: yes, 2: no ";
+                    cin >> continue_;
+                    if(continue_ == 1) {
+                        string payeeName;
+                        int payeePort;
+                        string userName;
+                        string payment;
+                        cout << USER_NAME << ", Please enter your name again to confirm this transaction: ";
+                        cin >> userName;
+                        cout << "Please enter the username you want to transfer to: ";
+                        cin >> payeeName;
+                        cout << userName << ", Please enter the amount of money you want to transfer to " << payeeName << ": ";
+                        cin >> payment;
+                        bool find = false;
 
-                // send list request to find payee's detailed info
-                sendMessage = "List";
-                send(socketfd, sendMessage.c_str(), sizeof(sendMessage), 0);
-
-                // receive list message
-                recv(socketfd, buffer, MAX_MSG_SIZE, 0);
-                if(buffer == "Please login first\n") cout << buffer;
-                else if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
+                        // find the payee;
+                        int count = 0;
+                        char* p;
+                        const char* delim = "\n";
+                        p = strtok(contBuffer, delim);
+                        string receiveArr[MAX_CLIENT + 3];
+                        while(p != NULL) {
+                            receiveArr[count] = p;
+                            count++;
+                            p = strtok(NULL, delim);
+                        }
+                        for(int i = 3; i < count; i++) {
+                            const char* newDelim = "#";
+                            char* line = (char*)receiveArr[i].c_str();
+                            char* p = strtok(line, "#");
+                            if(strcmp(p, payeeName.c_str()) == 0) {
+                                find = true;
+                                p = strtok(NULL, "#");
+                                char payeeAddress[100] = {0};
+                                strcpy(payeeAddress, p);
+                                p = strtok(NULL, "#");
+                                char portArr[100] = {0};
+                                strcpy(portArr, p);
+                                string msg = userName + "#" + payment + "#" + payeeName;
+                                transfering(payeeAddress, atoi(portArr), msg);
+                            }
+                        }
+                        if(!find) cout << payeeName << " NOT FOUND!" << endl;
+                    }
+                }
                 sendMessage = "";
+
                 // connect the payee
-                transfering();
+                // transfering();
             }
             else cout << "Please login first!" << endl;
         }
@@ -146,7 +202,11 @@ int main() {
                 strncpy(temp, buffer, 13);
                 temp[13] = '\0';
                 if(strcmp(temp, "220 AUTH_FAIL") == 0) cout << buffer << "invalid login request!" << endl;
-                else if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
+                else {
+                    isLogin = true;
+                    cout << "successfully logged in" << endl << endl;
+                }
+                if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
             }
             else cout << buffer;
         }
@@ -155,16 +215,9 @@ int main() {
     close(socketfd);
     return 0;
 }
-void transfering() {
+void transfering(char* toSendAddress, int payee_port, string msg) {
     int payee_socketfd;
     struct sockaddr_in payeeaddr;
-    // needs to use list data to find following info
-    char toSendAddress[100];
-    int payee_port;
-    cout << "Please enter address you want to send to: ";
-    cin >> toSendAddress;
-    cout << "Please enter the port you want to send to: ";
-    cin >> payee_port;
 
     if((payee_socketfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         cout << "socket creation error";
@@ -181,13 +234,14 @@ void transfering() {
         return;
     }
     // send message to payee
-    string msg;
-    cout << "Please enter the message to be sent: ";
-    cin >> msg;
+    // string msg;
+    // cout << "Please enter the message to be sent: ";
+    // cin >> msg;
     if(send(payee_socketfd, msg.c_str(), sizeof(msg), 0) < 0) {
         cout << "error in sending message to payee" << endl;
         return;
     }
+    else cout << "message successfuly sent!" << endl;
     close(payee_socketfd);
 }
 // calling receiving every 2 seconds
@@ -225,12 +279,29 @@ void receiving(int server_fd) {
             exit(EXIT_FAILURE);
         }
         bzero(buffer, sizeof(buffer));
+        char duplicate[MAX_MSG_SIZE] = {0};
+        char receiveBuff[MAX_MSG_SIZE] = {0};
         recv(client_socket, buffer, sizeof(buffer), 0);
-        cout << endl << "---receiving messages from peers---" << endl << buffer << endl << "------";
+        strcpy(duplicate, buffer);
+        char* p;
+        string from_name, amount;
+        p = strtok(duplicate, "#");
+        from_name = p;
+        p = strtok(NULL, "#");
+        amount = p;
+        if(send(SERVER_CLIENT_SOCKETFD, buffer, sizeof(buffer), 0) < 0) {
+            cout << from_name << " wants to transfer " << amount << " to you, but something went wrong..." << endl;
+        }
+        else {
+            recv(SERVER_CLIENT_SOCKETFD, receiveBuff, MAX_MSG_SIZE, 0);
+            cout << receiveBuff;
+            cout << "------There is a new transaction coming!------" << endl;
+            cout << from_name << " had just transfered " << amount << " to you! Go check your new account balance!" << endl; 
+        }
         return;
     }
 }
-int receiveList(char* buffer) {
+int receiveList(char* buffer) { /*bool search = false, string targetName = ""*/
     int lineCount = 0; // record the lines received from server
     const char* delim = "\n";
     char* p;
@@ -243,7 +314,6 @@ int receiveList(char* buffer) {
         // cout << "line " << lineCount << ": " << p << endl;
         p = strtok(NULL, delim);
     }
-    cout << receiveArr[2] << " " << lineCount << endl;
     if(lineCount < 3) return -1;
     if(receiveArr[2] == "" || receiveArr[2].length() > 1) return -1;
     if(stoi(receiveArr[2]) != lineCount - 3) return -1;
@@ -255,5 +325,6 @@ int receiveList(char* buffer) {
     for(int i = 3; i < lineCount; i++) {
         cout << "Account " << i-2 << "'s info: " << receiveArr[i] << endl;
     }
+    cout << "----------------------------" << endl << endl;
     return 0;
 }
