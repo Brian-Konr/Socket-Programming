@@ -126,6 +126,7 @@ int main() {
                 else if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
                 sendMessage = "";
                 // connect the payee
+                transfering();
             }
             else cout << "Please login first!" << endl;
         }
