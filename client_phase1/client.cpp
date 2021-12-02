@@ -6,7 +6,7 @@
 # include <netinet/in.h>
 # include <arpa/inet.h>
 # include <unistd.h>
-
+# include <typeinfo>
 using namespace std;
 
 int PORT;
@@ -16,7 +16,7 @@ int PORT;
 void* receive_thread(void* server_fd);
 void receiving(int server_fd);
 void transfering();
-
+int receiveList(char* buffer);
 int main() {
 
     /*First, build a socket to listen incoming messages from other clients*/
@@ -79,7 +79,7 @@ int main() {
     bool exit = false, isLogin = false;
     while(!exit) {
         string request, sendMessage;
-        char buffer[MAX_MSG_SIZE]; //used to receive from server
+        char buffer[MAX_MSG_SIZE] = {0}; //used to receive from server
         cout << "What service do you want today? ";
         cin >> request;
         if(request == "register") {
@@ -101,37 +101,33 @@ int main() {
             }
         }
         else if(request == "list") {
-            sendMessage = "List";
+            if(isLogin) sendMessage = "List";
+            else cout << "Please login first!" << endl;
         }
         else if(request == "exit") {
             sendMessage = "Exit";
             exit = true;
         }
         else if(request == "transfer") {
-            transfering();
-            // string myUserAccountName, payAmount, payeeUserAccountName;
-            // cout << "Please enter your account name: ";
-            // cin >> myUserAccountName;
-            // cout << "Please enter the payee's account name: ";
-            // cin >> payeeUserAccountName;
+            if(isLogin) {
+                // string myUserAccountName, payAmount, payeeUserAccountName;
+                // cout << "Please enter your account name: ";
+                // cin >> myUserAccountName;
+                // cout << "Please enter the payee's account name: ";
+                // cin >> payeeUserAccountName;
 
-            // // send list request to find payee's detailed info
-            // sendMessage = "List";
-            // send(socketfd, sendMessage.c_str(), sizeof(sendMessage), 0);
+                // send list request to find payee's detailed info
+                sendMessage = "List";
+                send(socketfd, sendMessage.c_str(), sizeof(sendMessage), 0);
 
-            // // receive list message
-            // recv(socketfd, buffer, MAX_MSG_SIZE, 0);
-            // int lineCount = 0; // record the lines received from server
-            // const char* delim = "\n";
-            // char* p;
-            // p = strtok(buffer, delim);
-            // while(p != NULL) {
-            //     cout << "line " << lineCount << ": " << p << endl;
-            //     p = strtok(NULL, delim);
-            //     lineCount++;
-            // }
-            
-            // connect the payee
+                // receive list message
+                recv(socketfd, buffer, MAX_MSG_SIZE, 0);
+                if(buffer == "Please login first\n") cout << buffer;
+                else if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
+                sendMessage = "";
+                // connect the payee
+            }
+            else cout << "Please login first!" << endl;
         }
         // send messages
         if(!sendMessage.empty() && send(socketfd, sendMessage.c_str(), sizeof(sendMessage), 0) < 0) { // c_str trans string to char array, because the params needs this type
@@ -140,7 +136,17 @@ int main() {
         }
         if(!sendMessage.empty()) {
             recv(socketfd, buffer, MAX_MSG_SIZE, 0);
-            cout << buffer;
+            if(request == "list") {
+                if(buffer == "Please login first\n") cout << buffer;
+                else if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
+            }
+            else if(request == "login") {
+                // to be fixed to get 220 auth fail
+                cout << "---" << endl;
+                // if(buffer == "220 AUTH_FAIL\n" || buffer == "220 AUTH_FAIL") cout << buffer;
+                // else if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
+            }
+            else cout << buffer;
         }
     }
     
@@ -221,4 +227,31 @@ void receiving(int server_fd) {
         cout << endl << "---receiving messages from peers---" << endl << buffer << endl << "------";
         return;
     }
+}
+int receiveList(char* buffer) {
+    int lineCount = 0; // record the lines received from server
+    const char* delim = "\n";
+    char* p;
+    p = strtok(buffer, delim);
+    string receiveArr[MAX_CLIENT + 3];
+    string wrongMsg = "info from server is not complete";
+    while(p != NULL) {
+        receiveArr[lineCount] = p;
+        lineCount++;
+        // cout << "line " << lineCount << ": " << p << endl;
+        p = strtok(NULL, delim);
+    }
+    cout << receiveArr[2] << " " << lineCount << endl;
+    if(lineCount < 3) return -1;
+    if(receiveArr[2] == "" || receiveArr[2].length() > 1) return -1;
+    if(stoi(receiveArr[2]) != lineCount - 3) return -1;
+
+    cout << "------list information------" << endl;
+    cout << "Account Balance: " << receiveArr[0] << endl;
+    cout << "Server's public key: " << receiveArr[1] << endl;
+    cout << "Number of accounts online: " << receiveArr[2] << endl;
+    for(int i = 3; i < lineCount; i++) {
+        cout << "Account " << i-2 << "'s info: " << receiveArr[i] << endl;
+    }
+    return 0;
 }
