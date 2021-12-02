@@ -293,8 +293,8 @@ void receiving(int server_fd) {
             cout << from_name << " wants to transfer " << amount << " to you, but something went wrong..." << endl;
         }
         else {
-            recv(SERVER_CLIENT_SOCKETFD, receiveBuff, MAX_MSG_SIZE, 0);
-            cout << receiveBuff;
+            // recv(SERVER_CLIENT_SOCKETFD, receiveBuff, MAX_MSG_SIZE, 0);
+            // cout << receiveBuff;
             cout << "------There is a new transaction coming!------" << endl;
             cout << from_name << " had just transfered " << amount << " to you! Go check your new account balance!" << endl; 
         }
