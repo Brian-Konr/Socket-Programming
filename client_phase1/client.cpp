@@ -141,10 +141,11 @@ int main() {
                 else if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
             }
             else if(request == "login") {
-                // to be fixed to get 220 auth fail
-                cout << "---" << endl;
-                // if(buffer == "220 AUTH_FAIL\n" || buffer == "220 AUTH_FAIL") cout << buffer;
-                // else if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
+                char temp[13];
+                strncpy(temp, buffer, 13);
+                temp[13] = '\0';
+                if(strcmp(temp, "220 AUTH_FAIL") == 0) cout << buffer << "invalid login request!" << endl;
+                else if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
             }
             else cout << buffer;
         }
