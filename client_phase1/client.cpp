@@ -195,7 +195,7 @@ int main() {
             recv(socketfd, buffer, MAX_MSG_SIZE, 0);
             if(request == "list") {
                 if(buffer == "Please login first\n") cout << buffer;
-                else if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
+                else if(receiveList(buffer) == -1) cout << "info from server is not complete, please enter your request again!" << endl;
             }
             else if(request == "login") {
                 char temp[13];
