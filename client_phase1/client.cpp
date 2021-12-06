@@ -174,12 +174,14 @@ int main() {
                                 strcpy(portArr, p);
                                 string msg = userName + "#" + payment + "#" + payeeName;
                                 transfering(payeeAddress, atoi(portArr), msg);
+                                // char* tempReceive[MAX_MSG_SIZE] = {0};
+                                // recv(socketfd, tempReceive, MAX_MSG_SIZE, 0);
+                                // cout << tempReceive;
                             }
                         }
                         if(!find) cout << payeeName << " NOT FOUND!" << endl;
                     }
                 }
-                sendMessage = "";
 
                 // connect the payee
                 // transfering();
@@ -190,6 +192,10 @@ int main() {
         if(!sendMessage.empty() && send(socketfd, sendMessage.c_str(), sizeof(sendMessage), 0) < 0) { // c_str trans string to char array, because the params needs this type
             cout << "Error in sending messages";
             return -1;
+        }
+        if(request == "transfer") {
+            recv(socketfd, buffer, MAX_MSG_SIZE, 0);
+            cout << buffer;
         }
         if(!sendMessage.empty()) {
             recv(socketfd, buffer, MAX_MSG_SIZE, 0);
@@ -233,10 +239,7 @@ void transfering(char* toSendAddress, int payee_port, string msg) {
         cout << "error in connection to payee" << endl;
         return;
     }
-    // send message to payee
-    // string msg;
-    // cout << "Please enter the message to be sent: ";
-    // cin >> msg;
+    
     if(send(payee_socketfd, msg.c_str(), sizeof(msg), 0) < 0) {
         cout << "error in sending message to payee" << endl;
         return;
@@ -248,7 +251,6 @@ void transfering(char* toSendAddress, int payee_port, string msg) {
 void* receive_thread(void* server_fd) {
     int s_fd = *((int*) server_fd);
     while(1) {
-        sleep(2);
         receiving(s_fd);
     }
 }
@@ -257,7 +259,7 @@ void* receive_thread(void* server_fd) {
 void receiving(int server_fd) {
     struct sockaddr_in address;
     int valread;
-    char buffer[2000] = {0};
+    char buffer[MAX_MSG_SIZE] = {0};
     int addrlen = sizeof(address);
     fd_set set;
 
@@ -289,12 +291,12 @@ void receiving(int server_fd) {
         from_name = p;
         p = strtok(NULL, "#");
         amount = p;
-        if(send(SERVER_CLIENT_SOCKETFD, buffer, sizeof(buffer), 0) < 0) {
+        string msg = from_name + "#" + amount + "#" + USER_NAME;
+        if(send(SERVER_CLIENT_SOCKETFD, msg.c_str(), sizeof(msg), 0) < 0) {
             cout << from_name << " wants to transfer " << amount << " to you, but something went wrong..." << endl;
         }
         else {
-            // recv(SERVER_CLIENT_SOCKETFD, receiveBuff, MAX_MSG_SIZE, 0);
-            // cout << receiveBuff;
+            cout << endl;
             cout << "------There is a new transaction coming!------" << endl;
             cout << from_name << " had just transfered " << amount << " to you! Go check your new account balance!" << endl; 
         }
