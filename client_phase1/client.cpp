@@ -214,7 +214,11 @@ int main() {
                 }
                 if(receiveList(buffer) == -1) cout << "info from server is not complete" << endl;
             }
-            else cout << buffer;
+            else if(request == "register") {
+                if(strcmp(buffer, "100 OK\n") == 0) cout << "successfully registered!" << endl;
+                else cout << buffer;
+            }
+            // else cout << buffer;
         }
     }
     
