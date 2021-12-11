@@ -36,8 +36,9 @@ struct ClientList {
     // string onlineliststr(Client*);
 };
 
-// ClientList clientList;
+// declare a global client list
 vector<Client> CLIENT_LIST;
+
 Client* findClient(string name);
 void serving(void* clientPtr);
 
