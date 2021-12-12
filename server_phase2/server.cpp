@@ -22,24 +22,21 @@ using namespace std;
 
 struct Client {
     string address;
-    int portnum;
+    string portNum;
     int sockfd;
     string acctName;
     int accountBalance;
     bool isOnline;
-};
 
-struct ClientList {
-    int onlineNum;
-    vector<Client> list;
-    Client* find(string);
-    // string onlineliststr(Client*);
+    void print();
 };
 
 // declare a global client list
 vector<Client> CLIENT_LIST;
 
 Client* findClient(string name);
+string makeListInfo(Client* clientPtr);
+int getOnlineNum();
 void serving(void* clientPtr);
 
 int main() {
@@ -109,6 +106,7 @@ void serving(void* clientPtr) {
     bool clientExit = false;
 
     while(!clientExit) {
+        bool transfer = false;
         // receive messages from client
         char rcvMsg[MAX_MSG_SIZE] = {0};
         recv(client.sockfd, rcvMsg, MAX_MSG_SIZE, 0);
@@ -135,11 +133,59 @@ void serving(void* clientPtr) {
         else if(message == "Exit") {
             msgToSend = "Bye\n";
         }
+        else if(message == "List") {
+            msgToSend = makeListInfo(&client);
+        }
+        else if(count(message.begin(), message.end(), '#') == 2) {
+            transfer = true;
+            string senderName = message.substr(0, message.find('#'));
+            string temp = message.substr(message.find('#') + 1);
+            int transAmount = stoi(temp.substr(0, temp.find('#')));
+            string receiverName = temp.substr(temp.find('#') + 1);
+            cout << senderName << "---" << transAmount << "---" << receiverName << "---" << endl;
+
+            Client* senderPtr = findClient(senderName);
+            Client* receiverPtr = findClient(receiverName);
+
+            cout << "socket fd of incoming msg: " << client.sockfd << endl;
+            cout << "sender socket fd: " << senderPtr->sockfd << endl;
+            cout << "receiver socket fd: " << receiverPtr->sockfd << endl;
+
+            senderPtr->accountBalance = senderPtr->accountBalance - transAmount;
+            receiverPtr->accountBalance = receiverPtr->accountBalance + transAmount;
+
+            string transferMsg = "Transfer OK!\n";
+            if(send(senderPtr->sockfd, transferMsg.c_str(), MAX_MSG_SIZE, 0) < 0) {
+                cout << "send msg error: " << strerror(errno) 
+                    << "(errno: " << errno << ")\n";
+                __throw_bad_exception;
+            }
+        }
+        else {
+            // login part
+            /*  login and register both have one #, but register will be handled in the upper if else statement,
+                thus I think I can still use this to determine login */
+            string reqLoginName = message.substr(0, message.find("#"));
+            Client* loginClientPtr = findClient(reqLoginName);
+            if(loginClientPtr != nullptr) {
+                loginClientPtr->address = client.address;
+                loginClientPtr->portNum = message.substr(message.find("#") + 1);
+                loginClientPtr->isOnline = true;
+                loginClientPtr->sockfd = client.sockfd;
+
+                client = *loginClientPtr;
+
+                msgToSend = makeListInfo(loginClientPtr);
+            }
+            else msgToSend = "220 AUTH_FAIL\n";
+        }
         // sending message to client
-        if(send(client.sockfd, msgToSend.c_str(), sizeof(msgToSend), 0) < 0) {
-            cout << "send msg error: " << strerror(errno) 
-                << "(errno: " << errno << ")\n";
-            __throw_bad_exception;
+        if(!transfer) {
+            if(send(client.sockfd, msgToSend.c_str(), MAX_MSG_SIZE, 0) < 0) {
+                cout << "send msg error: " << strerror(errno) 
+                    << "(errno: " << errno << ")\n";
+                __throw_bad_exception;
+            }
         }
     }
     close(client.sockfd);
@@ -155,4 +201,41 @@ Client* findClient(string name) {
         }
     }
     return nullptr;
+}
+
+string makeListInfo(Client* clientPtr) {
+    string listInfo;
+    listInfo += to_string(clientPtr->accountBalance);
+    listInfo += "\n";
+    listInfo += "public key"; // server public key
+    listInfo += "\n";
+    listInfo += to_string(getOnlineNum());
+    listInfo += "\n";
+
+    for(int i = 0; i < CLIENT_LIST.size(); i++) {
+        if(CLIENT_LIST[i].isOnline == true) {
+            cout << "hey " << CLIENT_LIST[i].acctName << endl;
+            listInfo += CLIENT_LIST[i].acctName;
+            listInfo += "#";
+            listInfo += CLIENT_LIST[i].address;
+            listInfo += "#";
+            listInfo += CLIENT_LIST[i].portNum;
+            listInfo += "\n";
+        }
+    }
+    return listInfo;
+}
+
+int getOnlineNum() {
+    int onlineCount = 0;
+    for(int i = 0; i < CLIENT_LIST.size(); i++) {
+        if(CLIENT_LIST[i].isOnline == true) onlineCount++;
+    }
+    return onlineCount;
+}
+
+void Client::print() {
+    cout << this->acctName << '#'
+         << this->address << '#'
+         << this->portNum << '\n';
 }
