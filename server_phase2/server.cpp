@@ -38,6 +38,7 @@ Client* findClient(string name);
 string makeListInfo(Client* clientPtr);
 int getOnlineNum();
 void serving(void* clientPtr);
+void transaction(string senderName, string receiverName, int transAmount);
 
 int main() {
     // serverPortNum typing
@@ -132,39 +133,51 @@ void serving(void* clientPtr) {
         }
         else if(message == "Exit") {
             msgToSend = "Bye\n";
+            for(int i = 0; i < CLIENT_LIST.size(); i++) {
+                if(CLIENT_LIST[i].sockfd == client.sockfd) CLIENT_LIST[i].isOnline = false;
+            }
+            clientExit = true;
         }
         else if(message == "List") {
-            msgToSend = makeListInfo(&client);
+            Client* reqClientPtr;
+            for(int i = 0; i < CLIENT_LIST.size(); i++) {
+                if(CLIENT_LIST[i].sockfd == client.sockfd) {
+                    reqClientPtr = &CLIENT_LIST[i];
+                    msgToSend = makeListInfo(reqClientPtr);
+                    break;
+                }
+            }
         }
         else if(count(message.begin(), message.end(), '#') == 2) {
+            // transfer part
             transfer = true;
             string senderName = message.substr(0, message.find('#'));
             string temp = message.substr(message.find('#') + 1);
             int transAmount = stoi(temp.substr(0, temp.find('#')));
             string receiverName = temp.substr(temp.find('#') + 1);
-            cout << senderName << "---" << transAmount << "---" << receiverName << "---" << endl;
+            // cout << senderName << "---" << transAmount << "---" << receiverName << "---" << endl;
+            // Client* receiverPtr = findClient(receiverName);
 
-            Client* senderPtr = findClient(senderName);
-            Client* receiverPtr = findClient(receiverName);
+            // cout << "socket fd of incoming msg: " << client.sockfd << endl;
+            // cout << "sender socket fd: " << senderPtr->sockfd << endl;
+            // cout << "receiver socket fd: " << receiverPtr->sockfd << endl;
 
-            cout << "socket fd of incoming msg: " << client.sockfd << endl;
-            cout << "sender socket fd: " << senderPtr->sockfd << endl;
-            cout << "receiver socket fd: " << receiverPtr->sockfd << endl;
+            // senderPtr->accountBalance = senderPtr->accountBalance - transAmount;
+            // receiverPtr->accountBalance = receiverPtr->accountBalance + transAmount;
 
-            senderPtr->accountBalance = senderPtr->accountBalance - transAmount;
-            receiverPtr->accountBalance = receiverPtr->accountBalance + transAmount;
+            transaction(senderName, receiverName, transAmount);
 
             string transferMsg = "Transfer OK!\n";
+
+            Client* senderPtr = findClient(senderName);
             if(send(senderPtr->sockfd, transferMsg.c_str(), MAX_MSG_SIZE, 0) < 0) {
                 cout << "send msg error: " << strerror(errno) 
                     << "(errno: " << errno << ")\n";
                 __throw_bad_exception;
             }
         }
-        else {
+        else if(count(message.begin(), message.end(), '#') == 1){
             // login part
-            /*  login and register both have one #, but register will be handled in the upper if else statement,
-                thus I think I can still use this to determine login */
             string reqLoginName = message.substr(0, message.find("#"));
             Client* loginClientPtr = findClient(reqLoginName);
             if(loginClientPtr != nullptr) {
@@ -214,7 +227,6 @@ string makeListInfo(Client* clientPtr) {
 
     for(int i = 0; i < CLIENT_LIST.size(); i++) {
         if(CLIENT_LIST[i].isOnline == true) {
-            cout << "hey " << CLIENT_LIST[i].acctName << endl;
             listInfo += CLIENT_LIST[i].acctName;
             listInfo += "#";
             listInfo += CLIENT_LIST[i].address;
@@ -238,4 +250,11 @@ void Client::print() {
     cout << this->acctName << '#'
          << this->address << '#'
          << this->portNum << '\n';
+}
+
+void transaction(string senderName, string receiverName, int transAmount) {
+    for(int i = 0; i < CLIENT_LIST.size(); i++) {
+        if(CLIENT_LIST[i].acctName.compare(senderName) == 0) CLIENT_LIST[i].accountBalance = CLIENT_LIST[i].accountBalance - transAmount;
+        else if(CLIENT_LIST[i].acctName.compare(receiverName) == 0) CLIENT_LIST[i].accountBalance = CLIENT_LIST[i].accountBalance + transAmount;
+    }
 }
