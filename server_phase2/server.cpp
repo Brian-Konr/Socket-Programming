@@ -17,7 +17,7 @@
 using namespace std;
 
 # define MAX_MSG_SIZE 4096
-# define MAX_THREAD_CNT 2
+# define MAX_THREAD_CNT 3
 # define MAX_QUEUE_CNT 10
 
 struct Client {
@@ -33,6 +33,8 @@ struct Client {
 
 // declare a global client list
 vector<Client> CLIENT_LIST;
+
+int CURRENT_CONNECTION = 0;
 
 Client* findClient(string name);
 string makeListInfo(Client* clientPtr);
@@ -79,22 +81,35 @@ int main() {
     cout << "The server is ready for incoming connection!" << endl;
 
     while(1) {
+
         // accept
         int clientaddrLen = sizeof(clientaddr);
         if((connfd = accept(listenfd, (struct sockaddr*) &clientaddr, (socklen_t*) &clientaddrLen)) < 0) {
             cout << "error in accepting client" << endl;
             return -1;
         }
-
         // handle new client
-        Client newClient;
-        newClient.address = inet_ntoa(clientaddr.sin_addr);
-        newClient.sockfd = connfd;
-        while (threadpool_add(pool, &serving, (void*) &newClient, 0) != 0) {
-            char msg[MAX_MSG_SIZE] = {"buffering\n"};
-            if (send(connfd, msg, sizeof(msg), 0) == -1) {
+        
+        if(CURRENT_CONNECTION < MAX_THREAD_CNT) {
+            CURRENT_CONNECTION++;
+            string successMsg = "Connection Succeeds\n";
+            if (send(connfd, successMsg.c_str(), MAX_MSG_SIZE, 0) == -1) {
                 cout << "send msg error: " << strerror(errno) 
-                     << "(errno: " << errno << ")\n";
+                    << "(errno: " << errno << ")\n";
+                return -1;
+            }
+            Client newClient;
+            newClient.address = inet_ntoa(clientaddr.sin_addr);
+            newClient.sockfd = connfd;
+            while (threadpool_add(pool, &serving, (void*) &newClient, 0) != 0) {
+                char msg[MAX_MSG_SIZE] = {"Exceeds Connection Limit\n"};
+            }
+        }
+        else {
+            string rejectMsg = "Exceeds Connection Limit\n";
+            if (send(connfd, rejectMsg.c_str(), MAX_MSG_SIZE, 0) == -1) {
+                cout << "send msg error: " << strerror(errno) 
+                    << "(errno: " << errno << ")\n";
                 return -1;
             }
         }
@@ -202,6 +217,7 @@ void serving(void* clientPtr) {
         }
     }
     close(client.sockfd);
+    CURRENT_CONNECTION = CURRENT_CONNECTION - 1;
     cout << "Client has disconnected" << endl;
 }
 
