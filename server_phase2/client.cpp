@@ -184,17 +184,14 @@ int main() {
                                 strcpy(portArr, p);
                                 string msg = userName + "#" + payment + "#" + payeeName;
                                 transfering(payeeAddress, atoi(portArr), msg);
-                                // char* tempReceive[MAX_MSG_SIZE] = {0};
-                                // recv(socketfd, tempReceive, MAX_MSG_SIZE, 0);
-                                // cout << tempReceive;
                             }
                         }
-                        if(!find) cout << payeeName << " NOT FOUND!" << endl;
+                        if(!find) {
+                            cout << payeeName << " NOT FOUND!" << endl;
+                            request = ""; // avoid falling into request == "transfer" loop and stuck in recv
+                        }
                     }
                 }
-
-                // connect the payee
-                // transfering();
             }
             else cout << "Please login first!" << endl;
         }
@@ -209,9 +206,11 @@ int main() {
         }
         if(!sendMessage.empty()) {
             recv(socketfd, buffer, MAX_MSG_SIZE, 0);
-            cout << buffer;
             if(request == "list") {
-                if(buffer == "Please login first\n") cout << buffer;
+                char temp[18];
+                strncpy(temp, buffer, 18);
+                temp[18] = '\0';
+                if(strcmp(temp, "Please login first") == 0) cout << buffer << endl;
                 else if(receiveList(buffer) == -1) cout << "info from server is not complete, please enter your request again!" << endl;
             }
             else if(request == "login") {

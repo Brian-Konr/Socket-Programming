@@ -40,7 +40,7 @@ Client* findClient(string name);
 string makeListInfo(Client* clientPtr);
 int getOnlineNum();
 void serving(void* clientPtr);
-void transaction(string senderName, string receiverName, int transAmount);
+bool transaction(string senderName, string receiverName, int transAmount);
 
 int main() {
     // serverPortNum typing
@@ -154,13 +154,24 @@ void serving(void* clientPtr) {
             clientExit = true;
         }
         else if(message == "List") {
-            Client* reqClientPtr;
+            // exception handling
+            int onLine = false;
             for(int i = 0; i < CLIENT_LIST.size(); i++) {
-                if(CLIENT_LIST[i].sockfd == client.sockfd) {
-                    reqClientPtr = &CLIENT_LIST[i];
-                    msgToSend = makeListInfo(reqClientPtr);
-                    break;
+                if(CLIENT_LIST[i].sockfd == client.sockfd) CLIENT_LIST[i].isOnline ? (onLine = true) : (onLine = false);
+            }
+            if(onLine) {
+                Client* reqClientPtr;
+                for(int i = 0; i < CLIENT_LIST.size(); i++) {
+                    if(CLIENT_LIST[i].sockfd == client.sockfd) {
+                        reqClientPtr = &CLIENT_LIST[i];
+                        msgToSend = makeListInfo(reqClientPtr);
+                        break;
+                    }
                 }
+            }
+            else {
+                cout << "User is not logged in yet!\n";
+                msgToSend = "Please login first";
             }
         }
         else if(count(message.begin(), message.end(), '#') == 2) {
@@ -170,26 +181,19 @@ void serving(void* clientPtr) {
             string temp = message.substr(message.find('#') + 1);
             int transAmount = stoi(temp.substr(0, temp.find('#')));
             string receiverName = temp.substr(temp.find('#') + 1);
-            // cout << senderName << "---" << transAmount << "---" << receiverName << "---" << endl;
-            // Client* receiverPtr = findClient(receiverName);
 
-            // cout << "socket fd of incoming msg: " << client.sockfd << endl;
-            // cout << "sender socket fd: " << senderPtr->sockfd << endl;
-            // cout << "receiver socket fd: " << receiverPtr->sockfd << endl;
+            string transferMsg;
+            if(transaction(senderName, receiverName, transAmount)) transferMsg = "Transfer OK!\n";
+            else transferMsg = "Transfer Failed!\n";
 
-            // senderPtr->accountBalance = senderPtr->accountBalance - transAmount;
-            // receiverPtr->accountBalance = receiverPtr->accountBalance + transAmount;
-
-            transaction(senderName, receiverName, transAmount);
-
-            string transferMsg = "Transfer OK!\n";
-
+            // sending message to sender
             Client* senderPtr = findClient(senderName);
             if(send(senderPtr->sockfd, transferMsg.c_str(), MAX_MSG_SIZE, 0) < 0) {
                 cout << "send msg error: " << strerror(errno) 
                     << "(errno: " << errno << ")\n";
                 __throw_bad_exception;
             }
+            
         }
         else if(count(message.begin(), message.end(), '#') == 1){
             // login part
@@ -268,9 +272,20 @@ void Client::print() {
          << this->portNum << '\n';
 }
 
-void transaction(string senderName, string receiverName, int transAmount) {
+bool transaction(string senderName, string receiverName, int transAmount) {
+    bool senderFind = false;
+    bool receiverFind = false;
     for(int i = 0; i < CLIENT_LIST.size(); i++) {
-        if(CLIENT_LIST[i].acctName.compare(senderName) == 0) CLIENT_LIST[i].accountBalance = CLIENT_LIST[i].accountBalance - transAmount;
-        else if(CLIENT_LIST[i].acctName.compare(receiverName) == 0) CLIENT_LIST[i].accountBalance = CLIENT_LIST[i].accountBalance + transAmount;
+        if(CLIENT_LIST[i].acctName.compare(senderName) == 0) {
+            senderFind = true;
+            CLIENT_LIST[i].accountBalance = CLIENT_LIST[i].accountBalance - transAmount;
+        }
+        else if(CLIENT_LIST[i].acctName.compare(receiverName) == 0) {
+            receiverFind = true;
+            CLIENT_LIST[i].accountBalance = CLIENT_LIST[i].accountBalance + transAmount;
+        }
     }
+    if(!senderFind || !receiverFind) return false;
+    
+    return true;
 }
