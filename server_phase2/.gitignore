@@ -1,4 +1,3 @@
 /server
 /client
-/client.cpp
 /socket_server.cpp
