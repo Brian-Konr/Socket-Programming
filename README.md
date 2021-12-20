@@ -2,9 +2,12 @@
 
 ## client side 
 ### run client.cpp
-1. g++ -pthread client.cpp
-2. ./a.out
+1. cd server_phase2
+2. g++ -pthread -o client client.cpp
+3. ./client
 
 ## server side
 ### run server
-./ server 8888 -a
+1. cd server_phase2
+2. make
+3. ./server
