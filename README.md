@@ -1,4 +1,4 @@
-# Socket_Programming
+# socket programming
 
 ## compile
 1. cd server_phase2
